@@ -1,6 +1,25 @@
 import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import { Typography, Button, TextField, CircularProgress, Card, CardContent, CardActions, Grid } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
+import { css, keyframes } from '@emotion/react';
+
+// Define a keyframe animation
+const fadeIn = keyframes`
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+`;
+
+// Apply the animation
+const fadeInStyle = css`
+  animation: ${fadeIn} 1s ease-in-out;
+`;
+
+const API_KEY = 'AIzaSyCBWliYugrzwPJRDGw5P0DnUTlAOW26oDU';
 
 const Home = () => {
   const [url, setUrl] = useState('');
@@ -9,14 +28,18 @@ const Home = () => {
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
-
   useEffect(() => {
-    // Check if there is data in sessionStorage
+    // Retrieve URL and result from localStorage
+    const storedUrl = localStorage.getItem('analyzeUrl');
     const storedResult = sessionStorage.getItem('analyzeResult');
+    if (storedUrl) {
+      setUrl(storedUrl);
+    }
     if (storedResult) {
       setResult(JSON.parse(storedResult));
     }
   }, []);
+
   const handleAnalyze = async () => {
     if (!url) {
       setError('Please enter a valid URL.');
@@ -27,24 +50,29 @@ const Home = () => {
     setError('');
 
     try {
-      // Simulate an API call
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      // Save URL to localStorage
+      localStorage.setItem('analyzeUrl', url);
 
-      // Simulate result with calculated indices
+      // Make the API call to PageSpeed Insights
+      const response = await axios.get(
+        `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(url)}&key=${API_KEY}`
+      );
+
+      // Extract relevant data from response
+      const data = response.data;
       const calculatedResult = {
-        performance: { score: 85, status: getStatus(85) },
-        loadTime: { time: 1.2, status: getStatus(1.2) },
-        seo: { score: 90, status: getStatus(90) },
-        accessibility: { score: 75, status: getStatus(75) },
-        bestPractices: { score: 80, status: getStatus(80) },
-        pwa: { score: 70, status: getStatus(70) },
-        security: { score: 95, status: getStatus(95) },
-        usability: { score: 88, status: getStatus(88) },
-        serverResponseTime: { time: 0.5, status: getStatus(0.5) },
-        imageOptimization: { score: 78, status: getStatus(78) },
-        cssOptimization: { score: 82, status: getStatus(82) },
-        jsOptimization: { score: 79, status: getStatus(79) },
-        suggestions: ['Optimize images', 'Minify CSS', 'Improve server response time'],
+        performance: { score: data.lighthouseResult.categories.performance.score * 100, status: getStatus(data.lighthouseResult.categories.performance.score * 100) },
+        loadTime: { time: data.lighthouseResult.audits['interactive'].displayValue.replace('s', ''), status: getStatus(parseFloat(data.lighthouseResult.audits['interactive'].displayValue.replace('s', ''))) },
+        seo: { score: data.lighthouseResult.categories.seo.score * 100, status: getStatus(data.lighthouseResult.categories.seo.score * 100) },
+        accessibility: { score: data.lighthouseResult.categories.accessibility.score * 100, status: getStatus(data.lighthouseResult.categories.accessibility.score * 100) },
+        pwa: { score: data.lighthouseResult.categories.pwa.score * 100, status: getStatus(data.lighthouseResult.categories.pwa.score * 100) },
+        security: { score: data.lighthouseResult.categories.seo.score * 100, status: getStatus(data.lighthouseResult.categories.seo.score * 100) },
+        usability: { score: data.lighthouseResult.categories.performance.score * 100, status: getStatus(data.lighthouseResult.categories.performance.score * 100) },
+        serverResponseTime: { time: data.lighthouseResult.audits['server-response-time'].displayValue.replace('ms', ''), status: getStatus(parseFloat(data.lighthouseResult.audits['server-response-time'].displayValue.replace('ms', ''))) },
+        imageOptimization: { score: data.lighthouseResult.audits['unminified-css'].score * 100, status: getStatus(data.lighthouseResult.audits['unminified-css'].score * 100) },
+        cssOptimization: { score: data.lighthouseResult.audits['unused-css-rules'].score * 100, status: getStatus(data.lighthouseResult.audits['unused-css-rules'].score * 100) },
+        jsOptimization: { score: data.lighthouseResult.audits['unminified-javascript'].score * 100, status: getStatus(data.lighthouseResult.audits['unminified-javascript'].score * 100) },
+        suggestions: data.lighthouseResult.audits['diagnostics'].details.items.map(item => item.title)
       };
 
       setResult(calculatedResult);
@@ -95,7 +123,7 @@ const Home = () => {
           {Object.keys(result).map((key, index) => (
             key !== 'suggestions' && (
               <Grid item xs={12} md={6} key={index}>
-                <Card sx={{ borderColor: result[key].status, borderWidth: 2, borderStyle: 'solid' }}>
+                <Card sx={{ borderColor: result[key].status, borderWidth: 2, borderStyle: 'solid', ...fadeInStyle }}>
                   <CardContent>
                     <Typography variant="h6" color="text.primary">
                       {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
@@ -107,7 +135,7 @@ const Home = () => {
                   <CardActions>
                     <Button
                       size="small"
-                      variant='contained'
+                      variant="contained"
                       onClick={() => navigate(`/${key}`, { state: { result: result[key], suggestions: result.suggestions } })}
                     >
                       See More
@@ -117,7 +145,6 @@ const Home = () => {
               </Grid>
             )
           ))}
-
         </Grid>
       )}
     </div>
